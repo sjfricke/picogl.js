@@ -1,5 +1,5 @@
 /*
-PicoGL.js v0.8.7
+PicoGL.js v$npm_package_version
 
 The MIT License (MIT)
 
@@ -32,7 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 		exports["PicoGL"] = factory();
 	else
 		root["PicoGL"] = factory();
-})(this, function() {
+})(typeof self !== 'undefined' ? self : this, function() {
 return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
@@ -1001,6 +1001,18 @@ class Query {
         return false;
     }
 
+    /**
+        Delete this query.
+
+        @method
+    */
+    delete() {
+        if (this.query) {
+            this.gl.deleteQuery(this.query);
+            this.query = null;
+        }
+    }
+
 }
 
 module.exports = Query;
@@ -1045,7 +1057,7 @@ const App = __webpack_require__(5);
     @namespace PicoGL
 */
 const PicoGL = __webpack_require__(0);
-PicoGL.version = "0.8.7";
+PicoGL.version = "$npm_package_version";
 
 /**
     Create a PicoGL app. The app is the primary entry point to PicoGL. It stores
@@ -2414,6 +2426,9 @@ const CONSTANTS = __webpack_require__(0);
     @prop {number} textureCount The number of active textures for this draw call.
     @prop {GLEnum} primitive The primitive type being drawn.
     @prop {Object} appState Tracked GL state.
+    @prop {GLsizei} count The number of element/indices to draw.
+    @prop {GLsizei} instanceCount The number of instances to draw.
+    @prop {GLint} offset Starting offset to draw in array.
 */
 class DrawCall {
 
@@ -2436,6 +2451,10 @@ class DrawCall {
         this.textures = new Array(CONSTANTS.WEBGL_INFO.MAX_TEXTURE_UNITS);
         this.textureCount = 0;
         this.primitive = primitive;
+
+        this.count = this.currentVertexArray.numElements;
+        this.instanceCount = this.currentVertexArray.numInstances;
+        this.offset = 0;
     }
 
     transformFeedback(transformFeedback) {
@@ -2494,6 +2513,33 @@ class DrawCall {
     }
 
     /**
+        Set the range of vertex array to be drawn
+
+        @method
+        @param {GLsizei} [count=0] Number of element/indices to render, 0 set to all.
+        @param {GLsizei} [instanceCount=0] Number of instance to render, 0 set to all.        
+        @param {GLint} [offset=0] Starting offset to draw in array.
+        @return {DrawCall} The DrawCall object.
+    */
+    range(count = 0, instanceCount = 0, offset = 0) {
+        if (count > 0) {
+            this.count = Math.min(count, this.currentVertexArray.numElements);
+        } else {
+            this.count = this.currentVertexArray.numElements;
+        }
+
+        if (instanceCount > 0) {
+            this.instanceCount = Math.min(instanceCount, this.currentVertexArray.numInstances);
+        } else {
+            this.instanceCount = this.currentVertexArray.numInstances;
+        }
+
+        this.offset = Math.max(offset, 0);
+
+        return this;
+    }
+
+    /**
         Draw based on current state.
 
         @method
@@ -2528,14 +2574,14 @@ class DrawCall {
 
         if (this.currentVertexArray.instanced) {
             if (this.currentVertexArray.indexed) {
-                this.gl.drawElementsInstanced(this.primitive, this.currentVertexArray.numElements, this.currentVertexArray.indexType, 0, this.currentVertexArray.numInstances);
+                this.gl.drawElementsInstanced(this.primitive, this.count, this.currentVertexArray.indexType, this.offset, this.instanceCount);
             } else {
-                this.gl.drawArraysInstanced(this.primitive, 0, this.currentVertexArray.numElements, this.currentVertexArray.numInstances);
+                this.gl.drawArraysInstanced(this.primitive, this.offset, this.count, this.instanceCount);
             }
         } else if (this.currentVertexArray.indexed) {
-            this.gl.drawElements(this.primitive, this.currentVertexArray.numElements, this.currentVertexArray.indexType, 0);
+            this.gl.drawElements(this.primitive, this.count, this.currentVertexArray.indexType, this.offset);
         } else {
-            this.gl.drawArrays(this.primitive, 0, this.currentVertexArray.numElements);
+            this.gl.drawArrays(this.primitive, this.offset, this.count);
         }
 
         if (this.currentTransformFeedback) {
@@ -3644,6 +3690,19 @@ class Timer {
             }
         } else {
             return !!this.cpuStartTime;
+        }
+    }
+
+    /**
+        Delete this timer.
+
+        @method
+    */
+    delete() {
+        if (this.gpuTimerQuery) {
+            this.gpuTimerQuery.delete();
+            this.gpuTimerQuery = null;
+            this.gpuTimer = false;
         }
     }
 
